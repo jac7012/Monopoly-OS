@@ -1,4 +1,6 @@
 #include "shared_memory.h"
+#include "scheduler.h"
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -58,6 +60,24 @@ int main() {
     }
     
     clean_shared_memory(shared_mem_ptr, "/test", sizeof(SharedData));
+
+    printf("\nStarting scheduler/logger demo\n\n");
+    if (scheduler_init(4) == 0) {
+        pthread_t sched_tid = scheduler_start();
+        for (int i = 0; i < 4; i++) {
+            scheduler_player_connect(i);
+        }
+
+        // Simulate a few turn advances
+        for (int i = 0; i < 6; i++) {
+            usleep(150000);
+            scheduler_advance_turn();
+        }
+
+        scheduler_end_game();
+        scheduler_stop(sched_tid);
+        scheduler_cleanup();
+    }
     
     return 0;
 }

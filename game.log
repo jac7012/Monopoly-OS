@@ -1,0 +1,43 @@
+2026-01-25 16:41:46.395 [1] Scheduler initialized with 4 players
+2026-01-25 16:41:46.396 [2] Player 0 connected (active=1)
+2026-01-25 16:41:46.396 [3] Player 1 connected (active=2)
+2026-01-25 16:41:46.396 [4] Player 2 connected (active=3)
+2026-01-25 16:41:46.396 [5] Player 3 connected (active=4)
+2026-01-25 16:41:46.497 [6] Turn advanced to player 1 (round=0, move=1)
+2026-01-25 16:41:46.547 [7] Turn changed to player 2 (total_moves=2)
+2026-01-25 16:41:46.599 [8] Turn advanced to player 3 (round=0, move=3)
+2026-01-25 16:41:46.698 [9] Turn changed to player 0 (total_moves=4)
+2026-01-25 16:41:46.699 [10] Turn advanced to player 1 (round=0, move=5)
+2026-01-25 16:41:46.802 [11] Turn advanced to player 2 (round=0, move=6)
+2026-01-25 16:41:46.849 [12] Turn changed to player 3 (total_moves=7)
+2026-01-25 16:41:46.903 [13] Round 1 completed
+2026-01-25 16:41:46.903 [14] Turn advanced to player 0 (round=1, move=8)
+2026-01-25 16:41:47.000 [15] Turn changed to player 1 (total_moves=9)
+2026-01-25 16:41:47.004 [16] Turn advanced to player 2 (round=1, move=10)
+2026-01-25 16:41:47.105 [17] Turn advanced to player 3 (round=1, move=11)
+2026-01-25 16:41:47.151 [18] Turn changed to player 0 (total_moves=12)
+2026-01-25 16:41:47.206 [19] Turn advanced to player 1 (round=1, move=13)
+2026-01-25 16:41:47.303 [20] Turn changed to player 2 (total_moves=14)
+2026-01-25 16:41:47.303 [21] Game ended
+2026-01-25 16:57:08.526 [1] Scheduler initialized with 4 players
+2026-01-25 16:57:08.527 [2] Player 0 connected (active=1)
+2026-01-25 16:57:08.527 [3] Player 1 connected (active=2)
+2026-01-25 16:57:08.527 [4] Player 2 connected (active=3)
+2026-01-25 16:57:08.527 [5] Player 3 connected (active=4)
+2026-01-25 16:57:08.627 [6] Turn advanced to player 1 (round=0, move=1)
+2026-01-25 16:57:08.678 [7] Turn changed to player 2 (total_moves=2)
+2026-01-25 16:57:08.728 [8] Turn advanced to player 3 (round=0, move=3)
+2026-01-25 16:57:08.829 [9] Round 1 completed
+2026-01-25 16:57:08.829 [10] Turn advanced to player 0 (round=1, move=4)
+2026-01-25 16:57:08.829 [11] Turn changed to player 1 (total_moves=5)
+2026-01-25 16:57:08.930 [12] Turn advanced to player 2 (round=1, move=6)
+2026-01-25 16:57:08.980 [13] Turn changed to player 3 (total_moves=7)
+2026-01-25 16:57:09.031 [14] Round 2 completed
+2026-01-25 16:57:09.031 [15] Turn advanced to player 0 (round=2, move=8)
+2026-01-25 16:57:09.131 [16] Turn changed to player 1 (total_moves=9)
+2026-01-25 16:57:09.131 [17] Turn advanced to player 2 (round=2, move=10)
+2026-01-25 16:57:09.233 [18] Turn advanced to player 3 (round=2, move=11)
+2026-01-25 16:57:09.281 [19] Turn changed to player 0 (total_moves=12)
+2026-01-25 16:57:09.335 [20] Turn advanced to player 1 (round=2, move=13)
+2026-01-25 16:57:09.432 [21] Turn changed to player 2 (total_moves=14)
+2026-01-25 16:57:09.432 [22] Game ended

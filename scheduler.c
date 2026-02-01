@@ -1,5 +1,6 @@
 #include "scheduler.h"
 #include "sync.h"
+#include "logger.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -136,6 +137,12 @@ int scheduler_init(int num_players) {
     scheduler_state->game_in_progress = false;
     scheduler_state->scheduler_running = false;
 
+    if (logger_init("game.log") == -1) {
+        fprintf(stderr, "[SCHEDULER] Warning: logger failed to initialize\n");
+    } else {
+        logger_log("Scheduler initialized with %d players", num_players);
+    }
+
     // Initialize players
     for (int i = 0; i < num_players; i++) {
         scheduler_state->players[i].player_id = i;
@@ -217,6 +224,7 @@ int scheduler_player_connect(int player_id) {
 
     printf("[SCHEDULER] Player %d connected (active: %d)\n", 
            player_id, scheduler_state->active_player_count);
+    logger_log("Player %d connected (active=%d)", player_id, scheduler_state->active_player_count);
 
     sync_cond_broadcast(&scheduler_state->turn_changed);
     sync_mutex_unlock(&scheduler_state->scheduler_lock);
@@ -249,6 +257,7 @@ int scheduler_player_disconnect(int player_id) {
 
     printf("[SCHEDULER] Player %d disconnected (active: %d)\n", 
            player_id, scheduler_state->active_player_count);
+    logger_log("Player %d disconnected (active=%d)", player_id, scheduler_state->active_player_count);
 
     // If current player just disconnected, advance turn
     if (scheduler_state->current_player_idx == player_id) {
@@ -341,6 +350,7 @@ int scheduler_advance_turn(void) {
 
     printf("[SCHEDULER] Advance turn to player %d (total moves: %ld)\n",
            next_idx, scheduler_state->total_moves);
+    logger_log("Turn changed to player %d (total_moves=%ld)", next_idx, scheduler_state->total_moves);
 
     int result = next_idx;
     sync_mutex_unlock(&scheduler_state->scheduler_lock);
@@ -360,6 +370,7 @@ int scheduler_end_game(void) {
     sync_cond_broadcast(&scheduler_state->turn_changed);
 
     printf("[SCHEDULER] Game end signal sent\n");
+    logger_log("Game ended");
 
     sync_mutex_unlock(&scheduler_state->scheduler_lock);
     return 0;
@@ -410,6 +421,7 @@ int scheduler_cleanup(void) {
 
     scheduler_state = NULL;
     printf("[SCHEDULER] Cleanup complete\n");
+    logger_shutdown();
     return 0;
 }
 
@@ -467,6 +479,7 @@ void *scheduler_thread_main(void *arg) {
                 if (next_idx == 0) {
                     scheduler_state->round_number++;
                     printf("[SCHEDULER-THREAD] Round %d completed\n", scheduler_state->round_number);
+                    logger_log("Round %d completed", scheduler_state->round_number);
                 }
 
                 update_turn_signals();
@@ -474,6 +487,8 @@ void *scheduler_thread_main(void *arg) {
 
                 printf("[SCHEDULER-THREAD] Turn advanced to player %d (round %d, move %ld)\n",
                        next_idx, scheduler_state->round_number, scheduler_state->total_moves);
+                logger_log("Turn advanced to player %d (round=%d, move=%ld)",
+                           next_idx, scheduler_state->round_number, scheduler_state->total_moves);
             }
         }
 

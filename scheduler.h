@@ -34,7 +34,7 @@ typedef struct {
     bool is_active;          // True if player is eligible to take turns
     int turn_count;          // Number of turns this player has taken
     pthread_t client_thread; // Thread/process ID of the client (if applicable)
-} Player;
+} SchedulerPlayer;
 
 /**
  * Central scheduler state (shared memory structure)
@@ -46,7 +46,7 @@ typedef struct {
  */
 typedef struct {
     // Player information
-    Player players[MAX_PLAYERS];
+    SchedulerPlayer players[MAX_PLAYERS];
     int num_players;              // Current number of players (3-5)
     int active_player_count;      // Number of currently active players
     

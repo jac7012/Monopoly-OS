@@ -5,9 +5,9 @@
 void init_board(Property board[]) {
     for(int i = 0; i < BOARD_SIZE; i++) {
         board[i].id = i;
-        board[i].price = 20 + i * 5;  // Example price increment
-        board[i].rent = 5 + i * 2;    // Example rent increment
-        board[i].owner = -1;           // Initially no owner
+        board[i].price = 100 + i * 20;   // Significant purchase cost: 100-480
+        board[i].rent = 50 + i * 10;     // Meaningful rent: 50-240
+        board[i].owner = -1;              // Initially no owner
     }
 }
 

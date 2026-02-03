@@ -444,7 +444,7 @@ void *scheduler_thread_main(void *arg) {
     }
 
     scheduler_state->scheduler_running = true;
-    scheduler_state->game_in_progress = true;
+    // DO NOT set game_in_progress to true - wait for server to start game
 
     sync_mutex_unlock(&scheduler_state->scheduler_lock);
 
@@ -457,7 +457,8 @@ void *scheduler_thread_main(void *arg) {
         // Check if game should continue
         if (!scheduler_state->game_in_progress) {
             sync_mutex_unlock(&scheduler_state->scheduler_lock);
-            break;
+            usleep(500000);  // Sleep 500ms while waiting for game to start
+            continue;  // Keep checking
         }
 
         // Wait a bit before advancing (allows game logic time to process moves)
@@ -468,8 +469,8 @@ void *scheduler_thread_main(void *arg) {
             break;
         }
 
-        // Advance turn if game is still in progress
-        if (scheduler_state->game_in_progress) {
+        // Advance turn ONLY if game is actually in progress
+        if (scheduler_state->game_in_progress && scheduler_state->active_player_count > 0) {
             int next_idx = find_next_active_player();
             if (next_idx >= 0) {
                 scheduler_state->current_player_idx = next_idx;

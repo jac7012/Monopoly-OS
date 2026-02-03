@@ -12,6 +12,7 @@
 #include <pthread.h>
 #include <semaphore.h>
 #include <time.h>
+#include <stdint.h>
 #include "game_state.h"
 #include "logger.h"
 #include "scheduler.h"
@@ -136,42 +137,70 @@ void handle_client(int client_socket, int player_id) {
         pkt.money = shm->players[player_id].money;
         
         if (action == 'r' && !shm->players[player_id].is_bankrupt) {
-            // Server generates dice roll with better randomization
-            srand(time(NULL) + player_id + shm->turn_count);
-            int dice = (rand() % 6) + 1;
+            // Server generates dice roll - use higher precision seed for each player
+            struct timespec ts;
+            clock_gettime(CLOCK_MONOTONIC, &ts);
+            unsigned int unique_seed = ts.tv_nsec + player_id * 12345 + (uintptr_t)&shm->players[player_id];
+            int dice = (rand_r(&unique_seed) % 6) + 1;
             logger_log("Player %d rolled %d", player_id, dice);
             
             // Move player
             shm->players[player_id].position = 
                 (shm->players[player_id].position + dice) % BOARD_SIZE;
             
-            // Handle landing on property
+            // Handle landing on special spaces
             int pos = shm->players[player_id].position;
-            Property *prop = &shm->board[pos];
             
-            if (prop->owner == -1) {
-                // Unowned - buy if can afford
-                if (shm->players[player_id].money >= prop->price) {
-                    shm->players[player_id].money -= prop->price;
-                    prop->owner = player_id;
-                    sprintf(pkt.message, "Rolled %d. Bought %s for $%d", 
-                           dice, prop->name, prop->price);
-                    logger_log("Player %d bought %s", player_id, prop->name);
+            // JAIL (position 10): Just visiting costs nothing, but can't leave easily
+            if (pos == 10) {
+                sprintf(pkt.message, "Rolled %d. You are in JAIL! Pay $50 to leave or roll next turn", dice);
+                logger_log("Player %d landed in JAIL", player_id);
+            }
+            // COMMUNITY CHEST (positions 2, 17): Random card draw
+            else if (pos == 2 || pos == 17) {
+                int card = rand_r(&unique_seed) % 2;  // Random card effect
+                if (card == 0) {
+                    // Good luck card - get money
+                    int bonus = 100 + (rand_r(&unique_seed) % 50);
+                    shm->players[player_id].money += bonus;
+                    sprintf(pkt.message, "Rolled %d. Community Chest! You drew a LUCKY card: +$%d!", dice, bonus);
+                    logger_log("Player %d drew lucky community chest: +$%d", player_id, bonus);
                 } else {
-                    sprintf(pkt.message, "Rolled %d. Can't afford %s", 
-                           dice, prop->name);
+                    // Bad luck card - pay money
+                    int penalty = 50 + (rand_r(&unique_seed) % 50);
+                    shm->players[player_id].money -= penalty;
+                    sprintf(pkt.message, "Rolled %d. Community Chest! You drew a BAD card: -$%d!", dice, penalty);
+                    logger_log("Player %d drew bad community chest: -$%d", player_id, penalty);
                 }
-            } else if (prop->owner != player_id) {
-                // Pay rent
-                int rent = prop->rent;
-                shm->players[player_id].money -= rent;
-                shm->players[prop->owner].money += rent;
-                sprintf(pkt.message, "Rolled %d. Paid $%d rent to Player %d", 
-                       dice, rent, prop->owner);
-                logger_log("Player %d paid $%d rent to Player %d", 
-                          player_id, rent, prop->owner);
-            } else {
-                sprintf(pkt.message, "Rolled %d. Landed on own property", dice);
+            }
+            // NORMAL PROPERTY
+            else {
+                Property *prop = &shm->board[pos];
+                
+                if (prop->owner == -1) {
+                    // Unowned - buy if can afford
+                    if (shm->players[player_id].money >= prop->price) {
+                        shm->players[player_id].money -= prop->price;
+                        prop->owner = player_id;
+                        sprintf(pkt.message, "Rolled %d. Bought %s for $%d", 
+                               dice, prop->name, prop->price);
+                        logger_log("Player %d bought %s", player_id, prop->name);
+                    } else {
+                        sprintf(pkt.message, "Rolled %d. Can't afford %s ($%d needed)", 
+                               dice, prop->name, prop->price);
+                    }
+                } else if (prop->owner != player_id) {
+                    // Pay rent
+                    int rent = prop->rent;
+                    shm->players[player_id].money -= rent;
+                    shm->players[prop->owner].money += rent;
+                    sprintf(pkt.message, "Rolled %d. Paid $%d rent to Player %d on %s", 
+                           dice, rent, prop->owner, prop->name);
+                    logger_log("Player %d paid $%d rent to Player %d", 
+                              player_id, rent, prop->owner);
+                } else {
+                    sprintf(pkt.message, "Rolled %d. Landed on own property %s", dice, prop->name);
+                }
             }
             
             // Check bankruptcy

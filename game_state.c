@@ -213,10 +213,10 @@ void advance_turn(GameState *state) {
             // Max rounds reached - find richest player as winner
             state->game_state = GAME_OVER;
             int richest = 0;
-            int max_money = shm->players[0].money;
+            int max_money = state->players[0].money;
             for (int i = 1; i < state->num_players; i++) {
-                if (shm->players[i].money > max_money) {
-                    max_money = shm->players[i].money;
+                if (state->players[i].money > max_money) {
+                    max_money = state->players[i].money;
                     richest = i;
                 }
             }

@@ -16,10 +16,10 @@ GameState* init_game_state_memory(void) {
         return NULL;
     }
     
-    //Initialise GameState fields on top of the shared memory
+    // Now initialize GameState fields on top of the shared memory
     GameState *state = (GameState *)shared_mem_ptr;
     
-    //Initialise process-shared synchronisation 
+    // Initialize process-shared synchronization primitives
     pthread_mutexattr_t mutex_attr;
     pthread_mutexattr_init(&mutex_attr);
     pthread_mutexattr_setpshared(&mutex_attr, PTHREAD_PROCESS_SHARED);
@@ -27,17 +27,17 @@ GameState* init_game_state_memory(void) {
     pthread_mutex_init(&state->score_mutex, &mutex_attr);
     pthread_mutexattr_destroy(&mutex_attr);
     
-    //Initialise process-shared condition 
+    // Initialize process-shared condition variable
     pthread_condattr_t cond_attr;
     pthread_condattr_init(&cond_attr);
     pthread_condattr_setpshared(&cond_attr, PTHREAD_PROCESS_SHARED);
     pthread_cond_init(&state->turn_cond, &cond_attr);
     pthread_condattr_destroy(&cond_attr);
     
-    //Initialise semaphore for logging
+    // Initialize semaphore for logging
     sem_init(&state->log_sem, 1, 1);  // 1 = process-shared
     
-    //Initialise game state
+    // Initialize game state
     state->game_state = WAITING;
     state->num_players = 0;
     state->active_player_count = 0;
@@ -45,10 +45,10 @@ GameState* init_game_state_memory(void) {
     state->round = 0;
     state->total_games = 0;
     
-    //Initialise board
+    // Initialize board
     init_board(state);
     
-    //Initialise player scores
+    // Initialize player scores
     for (int i = 0; i < MAX_PLAYERS; i++) {
         snprintf(state->scores[i].name, sizeof(state->scores[i].name), 
                 "Player %d", i);
@@ -71,7 +71,7 @@ GameState* attach_game_state_memory(void) {
 }
 
 // Wrapper: Cleanup shared memory
-// Destroys synchronisation primitives and calls shared_memory.c cleanup
+// Destroys synchronization primitives and calls shared_memory.c cleanup
 void cleanup_game_state_memory(GameState *state) {
     if (state) {
         pthread_mutex_destroy(&state->game_mutex);
@@ -83,20 +83,7 @@ void cleanup_game_state_memory(GameState *state) {
     clean_shared_memory((SharedData *)state, SHM_NAME, sizeof(SharedData));
 }
 
-// Compatibility wrappers for server.c calls
-GameState* init_shared_memory(void) {
-    return init_game_state_memory();
-}
-
-GameState* attach_shared_memory(void) {
-    return attach_game_state_memory();
-}
-
-void cleanup_shared_memory(GameState *state) {
-    cleanup_game_state_memory(state);
-}
-
-//Initialise board with properties
+// Initialize board with properties
 void init_board(GameState *state) {
     const char *property_names[BOARD_SIZE] = {
         "Go", "Mediterranean Ave", "Community Chest", "Baltic Ave",

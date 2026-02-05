@@ -3,19 +3,11 @@
 #include <errno.h>
 #include <string.h>
 
-/**
- * Synchronization Module Implementation
- * 
- * Implements process-shared synchronization primitives for coordinating
- * between parent threads and forked child processes.
- * 
- * All primitives are initialized with PTHREAD_PROCESS_SHARED attribute
- * to safely work across process boundaries (fork).
+/*
+ All primitives are initialized with PTHREAD_PROCESS_SHARED attribute
+ to safely work across process boundaries (fork).
  */
 
-/* ============================================================================
- * MUTEX OPERATIONS
- * ============================================================================ */
 
 int sync_mutex_init(pthread_mutex_t *mutex) {
     if (mutex == NULL) {
@@ -112,9 +104,7 @@ int sync_mutex_destroy(pthread_mutex_t *mutex) {
     return 0;
 }
 
-/* ============================================================================
- * SEMAPHORE OPERATIONS
- * ============================================================================ */
+//SEMAPHORE OPERATIONS
 
 int sync_sem_init(sem_t *sem, unsigned int initial_value) {
     if (sem == NULL) {

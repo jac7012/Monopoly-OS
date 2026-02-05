@@ -36,7 +36,7 @@ void sig_handler(int signo) {
         logger_shutdown();
         
         if (game_state) {
-            cleanup_shared_memory(game_state);
+            cleanup_game_state_memory(game_state);
         }
         close(server_fd);
         exit(0);
@@ -58,7 +58,7 @@ void handle_client(int client_socket, int player_id) {
     logger_log("Player %d session started (PID: %d)", player_id, getpid());
     
     // Attach to shared memory
-    GameState *shm = attach_shared_memory();
+        GameState *shm = attach_game_state_memory();
     if (!shm) {
         logger_log("Player %d failed to attach shared memory", player_id);
         close(client_socket);
@@ -257,7 +257,7 @@ int main() {
     logger_log("=== Monopoly Server Starting ===");
     
     // Initialize shared memory
-    game_state = init_shared_memory();
+        game_state = init_game_state_memory();
     if (!game_state) {
         logger_log("Failed to initialize shared memory");
         logger_shutdown();
@@ -271,7 +271,7 @@ int main() {
     // Initialize scheduler
     if (scheduler_init(MAX_CLIENTS) != 0) {
         logger_log("Failed to initialize scheduler");
-        cleanup_shared_memory(game_state);
+            cleanup_game_state_memory(game_state);
         logger_shutdown();
         return 1;
     }
@@ -281,7 +281,7 @@ int main() {
     if (scheduler_thread_id == 0) {
         logger_log("Failed to start scheduler thread");
         scheduler_cleanup();
-        cleanup_shared_memory(game_state);
+            cleanup_game_state_memory(game_state);
         logger_shutdown();
         return 1;
     }

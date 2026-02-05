@@ -88,9 +88,9 @@ typedef struct {
 } GameState;
 
 // Function declarations
-GameState* init_shared_memory(void);
-GameState* attach_shared_memory(void);
-void cleanup_shared_memory(GameState *state);
+GameState* init_game_state_memory(void);
+GameState* attach_game_state_memory(void);
+void cleanup_game_state_memory(GameState *state);
 void load_scores(GameState *state);
 void save_scores(GameState *state);
 void init_board(GameState *state);

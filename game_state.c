@@ -1,38 +1,25 @@
 #include "game_state.h"
+#include "shared_memory.h"
 #include "logger.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <fcntl.h>
 #include <unistd.h>
+#include <pthread.h>
+#include <semaphore.h>
 
-// Initialize shared memory
-GameState* init_shared_memory(void) {
-    int shm_fd = shm_open(SHM_NAME, O_CREAT | O_RDWR, 0666);
-    if (shm_fd == -1) {
-        perror("shm_open");
+// Initializes GameState within the SharedData structure
+GameState* init_game_state_memory(void) {
+    // Call shared_memory.c's init_shared_memory function
+    if (init_shared_memory(SHM_NAME, sizeof(SharedData)) != 0) {
+        logger_log("Failed to initialize shared memory");
         return NULL;
     }
     
-    if (ftruncate(shm_fd, sizeof(GameState)) == -1) {
-        perror("ftruncate");
-        close(shm_fd);
-        return NULL;
-    }
+    // Now initialize GameState fields on top of the shared memory
+    GameState *state = (GameState *)shared_mem_ptr;
     
-    GameState *state = mmap(NULL, sizeof(GameState), PROT_READ | PROT_WRITE,
-                            MAP_SHARED, shm_fd, 0);
-    if (state == MAP_FAILED) {
-        perror("mmap");
-        close(shm_fd);
-        return NULL;
-    }
-    
-    close(shm_fd);
-    
-    // Initialize process-shared mutex
+    // Initialize process-shared synchronization primitives
     pthread_mutexattr_t mutex_attr;
     pthread_mutexattr_init(&mutex_attr);
     pthread_mutexattr_setpshared(&mutex_attr, PTHREAD_PROCESS_SHARED);
@@ -72,36 +59,28 @@ GameState* init_shared_memory(void) {
     return state;
 }
 
-// Attach to existing shared memory (for child processes)
-GameState* attach_shared_memory(void) {
-    int shm_fd = shm_open(SHM_NAME, O_RDWR, 0666);
-    if (shm_fd == -1) {
-        perror("shm_open (attach)");
+// Wrapper: Attach to existing shared memory (for child processes)
+// Uses shared_memory.c to attach, then returns as GameState*
+GameState* attach_game_state_memory(void) {
+    SharedData *shm = attach_shared_memory(SHM_NAME, sizeof(SharedData));
+    if (shm == NULL) {
+        logger_log("Failed to attach to shared memory");
         return NULL;
     }
-    
-    GameState *state = mmap(NULL, sizeof(GameState), PROT_READ | PROT_WRITE,
-                            MAP_SHARED, shm_fd, 0);
-    if (state == MAP_FAILED) {
-        perror("mmap (attach)");
-        close(shm_fd);
-        return NULL;
-    }
-    
-    close(shm_fd);
-    return state;
+    return (GameState *)shm;
 }
 
-// Cleanup shared memory
-void cleanup_shared_memory(GameState *state) {
+// Wrapper: Cleanup shared memory
+// Destroys synchronization primitives and calls shared_memory.c cleanup
+void cleanup_game_state_memory(GameState *state) {
     if (state) {
         pthread_mutex_destroy(&state->game_mutex);
         pthread_mutex_destroy(&state->score_mutex);
         pthread_cond_destroy(&state->turn_cond);
         sem_destroy(&state->log_sem);
-        munmap(state, sizeof(GameState));
     }
-    shm_unlink(SHM_NAME);
+    // Use shared_memory.c's cleanup function
+    clean_shared_memory((SharedData *)state, SHM_NAME, sizeof(SharedData));
 }
 
 // Initialize board with properties
@@ -187,49 +166,29 @@ void advance_turn(GameState *state) {
         state->round++;
     }
     
-    // Check win condition - only end game if only 1 player remains solvent
-    int solvent_count = 0;
-    int last_solvent = -1;
+    // Check win condition
+    int active_count = 0;
+    int winner_id = -1;
     for (int i = 0; i < state->num_players; i++) {
-        if (!state->players[i].is_bankrupt) {
-            solvent_count++;
-            last_solvent = i;
+        if (!state->players[i].is_bankrupt && state->players[i].is_active) {
+            active_count++;
+            winner_id = i;
         }
     }
     
-    // Check if only 1 player remains solvent OR max rounds reached
-    if ((solvent_count == 1 && last_solvent >= 0) || state->round >= 50) {
-        if (solvent_count == 1 && last_solvent >= 0) {
-            state->game_state = GAME_OVER;
+    if (active_count <= 1) {
+        state->game_state = GAME_OVER;
+        if (winner_id >= 0) {
             pthread_mutex_lock(&state->score_mutex);
-            state->scores[last_solvent].wins++;
+            state->scores[winner_id].wins++;
             for (int i = 0; i < state->num_players; i++) {
                 state->scores[i].games_played++;
             }
             state->total_games++;
             pthread_mutex_unlock(&state->score_mutex);
-            logger_log("Game over! Player %d wins after %d rounds!", last_solvent, state->round);
-        } else {
-            // Max rounds reached - find richest player as winner
-            state->game_state = GAME_OVER;
-            int richest = 0;
-            int max_money = state->players[0].money;
-            for (int i = 1; i < state->num_players; i++) {
-                if (state->players[i].money > max_money) {
-                    max_money = state->players[i].money;
-                    richest = i;
-                }
-            }
-            pthread_mutex_lock(&state->score_mutex);
-            state->scores[richest].wins++;
-            for (int i = 0; i < state->num_players; i++) {
-                state->scores[i].games_played++;
-            }
-            state->total_games++;
-            pthread_mutex_unlock(&state->score_mutex);
-            logger_log("Game timeout at round %d! Richest player %d wins with $%d", state->round, richest, max_money);
+            logger_log("Game over! Player %d wins!", winner_id);
+            save_scores(state);
         }
-        save_scores(state);
     }
 }
 

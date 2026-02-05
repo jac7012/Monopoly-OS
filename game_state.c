@@ -86,11 +86,11 @@ void cleanup_game_state_memory(GameState *state) {
 // Initialize board with properties
 void init_board(GameState *state) {
     const char *property_names[BOARD_SIZE] = {
-        "Go", "Mediterranean Ave", "Community Chest", "Baltic Ave",
-        "Income Tax", "Reading Railroad", "Oriental Ave", "Chance",
-        "Vermont Ave", "Connecticut Ave", "Jail", "St. Charles Place",
-        "Electric Company", "States Ave", "Virginia Ave", "Pennsylvania RR",
-        "St. James Place", "Community Chest", "Tennessee Ave", "New York Ave"
+        "Go", "Pasar Seni", "Community Chest", "Batu Caves",
+        "Income Tax", "KL Sentral", "George Town", "Chance",
+        "Langkawi", "Penang Hill", "Jail", "Melaka Old Town",
+        "TNB HQ", "Putrajaya", "Cameron Highlands", "KLCC",
+        "Genting Highlands", "Community Chest", "Johor Bahru", "Mount Kinabalu"
     };
     
     for (int i = 0; i < BOARD_SIZE; i++) {

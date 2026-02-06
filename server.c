@@ -335,12 +335,13 @@ int main() {
             continue;
         }
         
-        if (game_state->game_state != WAITING && game_state->game_state != GAME_OVER) {
-            logger_log("Connection rejected - game in progress");
+       if (game_state->game_state == GAME_OVER) {
+            logger_log("Connection rejected - game over");
             pthread_mutex_unlock(&game_state->game_mutex);
             close(client_socket);
             continue;
         }
+        
         
         // Assign player ID
         int player_id = game_state->num_players++;

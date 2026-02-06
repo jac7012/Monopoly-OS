@@ -88,7 +88,7 @@ void init_board(GameState *state) {
     const char *property_names[BOARD_SIZE] = {
         "Go", "Pasar Seni", "Community Chest", "Batu Caves",
         "Income Tax", "KL Sentral", "George Town", "Chance",
-        "Langkawi", "Penang Hill", "Jail", "Melaka Old Town",
+        "Langkawi", "Penang Hill", "Tax Office", "Melaka Old Town",
         "TNB HQ", "Putrajaya", "Cameron Highlands", "KLCC",
         "Genting Highlands", "Community Chest", "Johor Bahru", "Mount Kinabalu"
     };

@@ -3,7 +3,7 @@ CFLAGS = -Wall -Wextra -pthread -g -O2
 LDFLAGS = -lrt -lpthread
 
 # Server components
-SERVER_OBJS = server.o game_state.o shared_memory.o logger.o scheduler.o sync.o
+SERVER_OBJS = server.o game_state.o shared_memory.o logger.o scheduler.o sync.o game_logic.o
 SERVER_TARGET = monopoly_server
 
 # Client components  
@@ -34,7 +34,7 @@ $(DEMO_TARGET): $(DEMO_OBJS)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Dependencies
-server.o: server.c game_state.h logger.h scheduler.h
+server.o: server.c game_state.h logger.h scheduler.h game_logic.h
 game_state.o: game_state.c game_state.h logger.h
 logger.o: logger.c logger.h
 scheduler.o: scheduler.c scheduler.h sync.h logger.h

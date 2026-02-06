@@ -16,6 +16,7 @@
 #include "game_state.h"
 #include "logger.h"
 #include "scheduler.h"
+#include "game_logic.h"
 
 #define PORT 8080
 #define MAX_CLIENTS 5
@@ -142,76 +143,51 @@ void handle_client(int client_socket, int player_id) {
             struct timespec ts;
             clock_gettime(CLOCK_MONOTONIC, &ts);
             unsigned int unique_seed = ts.tv_nsec + player_id * 12345 + (uintptr_t)&shm->players[player_id];
-            int dice = (rand_r(&unique_seed) % 6) + 1;
+            int dice = roll_dice_seeded(&unique_seed);
             logger_log("Player %d rolled %d", player_id, dice);
             
             // Move player
             shm->players[player_id].position = 
                 (shm->players[player_id].position + dice) % BOARD_SIZE;
             
-            // Handle landing on special spaces
+            // Get landing result from game logic
             int pos = shm->players[player_id].position;
+            LandingResult landing = handle_landing_on_position(pos, player_id, 
+                                                                shm->players[player_id].money,
+                                                                shm->board, &unique_seed);
             
-            // TAX OFFICE (position 10): Pay $50 tax
-            if (pos == 10) {
-                shm->players[player_id].money -= 50;
-                sprintf(pkt.message, "Rolled %d. TAX OFFICE! You paid $50 in taxes", dice);
-                logger_log("Player %d landed on Tax Office - paid $50", player_id);
+            // Apply the landing result to shared memory
+            shm->players[player_id].money += landing.money_change;
+            
+            // If property was bought, update owner
+            if (landing.property_bought) {
+                shm->board[pos].owner = player_id;
+                logger_log("Player %d bought %s", player_id, shm->board[pos].name);
             }
-            // COMMUNITY CHEST (positions 2, 17): Random card draw
-            else if (pos == 2 || pos == 17) {
-                int card = rand_r(&unique_seed) % 2;  // Random card effect
-                if (card == 0) {
-                    // Good luck card - get money
-                    int bonus = 100 + (rand_r(&unique_seed) % 50);
-                    shm->players[player_id].money += bonus;
-                    sprintf(pkt.message, "Rolled %d. Community Chest! You drew a LUCKY card: +$%d!", dice, bonus);
-                    logger_log("Player %d drew lucky community chest: +$%d", player_id, bonus);
-                } else {
-                    // Bad luck card - pay money
-                    int penalty = 50 + (rand_r(&unique_seed) % 50);
-                    shm->players[player_id].money -= penalty;
-                    sprintf(pkt.message, "Rolled %d. Community Chest! You drew a BAD card: -$%d!", dice, penalty);
-                    logger_log("Player %d drew bad community chest: -$%d", player_id, penalty);
-                }
+            
+            // If rent was paid, transfer to owner
+            if (landing.owner_id != -1 && landing.owner_id != player_id) {
+                shm->players[landing.owner_id].money += (-landing.money_change);
+                logger_log("Player %d paid $%d rent to Player %d", 
+                          player_id, -landing.money_change, landing.owner_id);
             }
-            // NORMAL PROPERTY
-            else {
-                Property *prop = &shm->board[pos];
-                
-                if (prop->owner == -1) {
-                    // Unowned - buy if can afford
-                    if (shm->players[player_id].money >= prop->price) {
-                        shm->players[player_id].money -= prop->price;
-                        prop->owner = player_id;
-                        sprintf(pkt.message, "Rolled %d. Bought %s for $%d", 
-                               dice, prop->name, prop->price);
-                        logger_log("Player %d bought %s", player_id, prop->name);
-                    } else {
-                        sprintf(pkt.message, "Rolled %d. Can't afford %s ($%d needed)", 
-                               dice, prop->name, prop->price);
-                    }
-                } else if (prop->owner != player_id) {
-                    // Pay rent
-                    int rent = prop->rent;
-                    shm->players[player_id].money -= rent;
-                    shm->players[prop->owner].money += rent;
-                    sprintf(pkt.message, "Rolled %d. Paid $%d rent to Player %d on %s", 
-                           dice, rent, prop->owner, prop->name);
-                    logger_log("Player %d paid $%d rent to Player %d", 
-                              player_id, rent, prop->owner);
-                } else {
-                    sprintf(pkt.message, "Rolled %d. Landed on own property %s", dice, prop->name);
-                }
+            
+            // Log the landing
+            if (landing.money_change != 0) {
+                logger_log("Player %d: %s (money change: %d)", player_id, landing.message, landing.money_change);
+            } else {
+                logger_log("Player %d: %s", player_id, landing.message);
             }
             
             // Check bankruptcy
-            if (shm->players[player_id].money < 0) {
+            if (landing.is_bankrupt) {
                 shm->players[player_id].is_bankrupt = 1;
                 shm->active_player_count--;
                 logger_log("Player %d went bankrupt", player_id);
-                sprintf(pkt.message + strlen(pkt.message), " - BANKRUPT!");
             }
+            
+            // Format message for client
+            sprintf(pkt.message, "Rolled %d. %s", dice, landing.message);
             
             // Send update
             pkt.type = MSG_UPDATE;
@@ -335,13 +311,13 @@ int main() {
             continue;
         }
         
-       if (game_state->game_state == GAME_OVER) {
+        // Only reject if game is completely over (allow joining during initial setup/playing)
+        if (game_state->game_state == GAME_OVER) {
             logger_log("Connection rejected - game over");
             pthread_mutex_unlock(&game_state->game_mutex);
             close(client_socket);
             continue;
         }
-        
         
         // Assign player ID
         int player_id = game_state->num_players++;

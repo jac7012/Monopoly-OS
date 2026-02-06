@@ -87,8 +87,9 @@ void handle_client(int client_socket, int player_id) {
             break;
         }
         
-        // Wait until it's this player's turn
-        while (shm->current_turn != player_id && shm->game_state == PLAYING) {
+        // Wait until game starts AND it's this player's turn
+        while ((shm->game_state != PLAYING || shm->current_turn != player_id) && 
+               shm->game_state != GAME_OVER) {
             pthread_cond_wait(&shm->turn_cond, &shm->game_mutex);
         }
         
@@ -151,10 +152,11 @@ void handle_client(int client_socket, int player_id) {
             // Handle landing on special spaces
             int pos = shm->players[player_id].position;
             
-            // JAIL (position 10): Just visiting costs nothing, but can't leave easily
+            // TAX OFFICE (position 10): Pay $50 tax
             if (pos == 10) {
-                sprintf(pkt.message, "Rolled %d. You are in JAIL! Pay $50 to leave or roll next turn", dice);
-                logger_log("Player %d landed in JAIL", player_id);
+                shm->players[player_id].money -= 50;
+                sprintf(pkt.message, "Rolled %d. TAX OFFICE! You paid $50 in taxes", dice);
+                logger_log("Player %d landed on Tax Office - paid $50", player_id);
             }
             // COMMUNITY CHEST (positions 2, 17): Random card draw
             else if (pos == 2 || pos == 17) {

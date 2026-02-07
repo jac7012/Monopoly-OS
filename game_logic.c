@@ -8,8 +8,6 @@ int roll_dice_seeded(unsigned int *seed) {
     return (rand_r(seed) % 6) + 1;
 }
 
-
-
 // Check if player is bankrupt
 int is_player_bankrupt(int money) {
     return money < 0;
@@ -78,5 +76,8 @@ LandingResult handle_landing_on_position(int position, int player_id, int curren
     
     return result;
 }
+<<<<<<< HEAD
 
 
+=======
+>>>>>>> 9eab809df4a66e2b6187c91dbcb000bddc2d27ae

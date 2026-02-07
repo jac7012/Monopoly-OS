@@ -215,7 +215,7 @@ int scheduler_player_connect(int player_id) {
     if (scheduler_state->players[player_id].is_connected) {
         fprintf(stderr, "[SCHEDULER] Warning: player %d already connected\n", player_id);
         sync_mutex_unlock(&scheduler_state->scheduler_lock);
-        return 0;  // Not an error, already connected
+        return 0; 
     }
 
     scheduler_state->players[player_id].is_connected = true;
@@ -248,7 +248,7 @@ int scheduler_player_disconnect(int player_id) {
 
     if (!scheduler_state->players[player_id].is_connected) {
         sync_mutex_unlock(&scheduler_state->scheduler_lock);
-        return 0;  // Already disconnected
+        return 0;  
     }
 
     scheduler_state->players[player_id].is_connected = false;

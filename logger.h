@@ -6,8 +6,10 @@
 /**
  * Logger Module Header
  *
- * Thread-safe, non-blocking (for gameplay) logging via a dedicated logger thread.
- * Call logger_init() once at startup, then use logger_log() for events.
+ * Thread-safe, non-blocking logging via a dedicated logger thread.
+ * Uses POSIX message queue for cross-process logging (works across fork()).
+ * Call logger_init() once at startup (starts thread automatically).
+ * Use logger_log() for events from any process.
  * Call logger_shutdown() during cleanup to flush and stop the logger thread.
  */
 

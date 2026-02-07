@@ -16,6 +16,7 @@
 #include "game_state.h"
 #include "logger.h"
 #include "scheduler.h"
+#include "game_logic.h"
 
 #define PORT 8080
 #define MAX_CLIENTS 5
@@ -24,7 +25,6 @@
 // Global server state
 int server_fd;
 GameState *game_state = NULL;
-pthread_t logger_thread_id;
 pthread_t scheduler_thread_id;
 
 // Signal handler for graceful shutdown
@@ -52,7 +52,6 @@ void sig_handler(int signo) {
 
 // Handle individual client in child process
 void handle_client(int client_socket, int player_id) {
-    char buffer[256];
     Packet pkt;
     
     logger_log("Player %d session started (PID: %d)", player_id, getpid());
@@ -75,20 +74,25 @@ void handle_client(int client_socket, int player_id) {
             int winner_id = get_winner(shm);
             if (winner_id == player_id) {
                 pkt.type = MSG_WIN;
-                sprintf(pkt.message, "Congratulations! You won!");
+                snprintf(pkt.message, sizeof(pkt.message), "Congratulations! You won!");
             } else {
                 pkt.type = MSG_LOSE;
-                sprintf(pkt.message, "Game Over. Player %d won.", winner_id);
+                snprintf(pkt.message, sizeof(pkt.message), "Game Over. Player %d won.", winner_id);
             }
             pkt.player_id = player_id;
             pkt.money = shm->players[player_id].money;
-            write(client_socket, &pkt, sizeof(Packet));
+            if (write(client_socket, &pkt, sizeof(Packet)) < 0) {
+                logger_log("Player %d write failed", player_id);
+                pthread_mutex_unlock(&shm->game_mutex);
+                break;
+            }
             pthread_mutex_unlock(&shm->game_mutex);
             break;
         }
         
-        // Wait until it's this player's turn
-        while (shm->current_turn != player_id && shm->game_state == PLAYING) {
+        // Wait until game starts AND it's this player's turn
+        while ((shm->game_state != PLAYING || shm->current_turn != player_id) && 
+               shm->game_state != GAME_OVER) {
             pthread_cond_wait(&shm->turn_cond, &shm->game_mutex);
         }
         
@@ -111,10 +115,13 @@ void handle_client(int client_socket, int player_id) {
         pkt.player_id = player_id;
         pkt.position = shm->players[player_id].position;
         pkt.money = shm->players[player_id].money;
-        sprintf(pkt.message, "Your turn! Press 'r' to roll dice.");
+        snprintf(pkt.message, sizeof(pkt.message), "Your turn! Press 'r' to roll dice.");
         pthread_mutex_unlock(&shm->game_mutex);
         
-        write(client_socket, &pkt, sizeof(Packet));
+        if (write(client_socket, &pkt, sizeof(Packet)) < 0) {
+            logger_log("Player %d write failed", player_id);
+            break;
+        }
         
         // Wait for player action
         char action;
@@ -141,75 +148,57 @@ void handle_client(int client_socket, int player_id) {
             struct timespec ts;
             clock_gettime(CLOCK_MONOTONIC, &ts);
             unsigned int unique_seed = ts.tv_nsec + player_id * 12345 + (uintptr_t)&shm->players[player_id];
-            int dice = (rand_r(&unique_seed) % 6) + 1;
+            int dice = roll_dice_seeded(&unique_seed);
             logger_log("Player %d rolled %d", player_id, dice);
             
             // Move player
             shm->players[player_id].position = 
                 (shm->players[player_id].position + dice) % BOARD_SIZE;
             
-            // Handle landing on special spaces
+            // Get landing result from game logic
             int pos = shm->players[player_id].position;
+            LandingResult landing = handle_landing_on_position(pos, player_id, 
+                                                                shm->players[player_id].money,
+                                                                shm->board, &unique_seed);
             
-            // JAIL (position 10): Just visiting costs nothing, but can't leave easily
-            if (pos == 10) {
-                sprintf(pkt.message, "Rolled %d. You are in JAIL! Pay $50 to leave or roll next turn", dice);
-                logger_log("Player %d landed in JAIL", player_id);
+            // Apply the landing result to shared memory
+            shm->players[player_id].money += landing.money_change;
+            
+            // If property was bought, update owner
+            if (landing.property_bought) {
+                shm->board[pos].owner = player_id;
+                logger_log("Player %d bought %s", player_id, shm->board[pos].name);
             }
-            // COMMUNITY CHEST (positions 2, 17): Random card draw
-            else if (pos == 2 || pos == 17) {
-                int card = rand_r(&unique_seed) % 2;  // Random card effect
-                if (card == 0) {
-                    // Good luck card - get money
-                    int bonus = 100 + (rand_r(&unique_seed) % 50);
-                    shm->players[player_id].money += bonus;
-                    sprintf(pkt.message, "Rolled %d. Community Chest! You drew a LUCKY card: +$%d!", dice, bonus);
-                    logger_log("Player %d drew lucky community chest: +$%d", player_id, bonus);
-                } else {
-                    // Bad luck card - pay money
-                    int penalty = 50 + (rand_r(&unique_seed) % 50);
-                    shm->players[player_id].money -= penalty;
-                    sprintf(pkt.message, "Rolled %d. Community Chest! You drew a BAD card: -$%d!", dice, penalty);
-                    logger_log("Player %d drew bad community chest: -$%d", player_id, penalty);
-                }
+            
+            // If rent was paid, transfer to owner
+            if (landing.owner_id != -1 && landing.owner_id != player_id) {
+                shm->players[landing.owner_id].money += (-landing.money_change);
+                logger_log("Player %d paid $%d rent to Player %d", 
+                          player_id, -landing.money_change, landing.owner_id);
             }
-            // NORMAL PROPERTY
-            else {
-                Property *prop = &shm->board[pos];
-                
-                if (prop->owner == -1) {
-                    // Unowned - buy if can afford
-                    if (shm->players[player_id].money >= prop->price) {
-                        shm->players[player_id].money -= prop->price;
-                        prop->owner = player_id;
-                        sprintf(pkt.message, "Rolled %d. Bought %s for $%d", 
-                               dice, prop->name, prop->price);
-                        logger_log("Player %d bought %s", player_id, prop->name);
-                    } else {
-                        sprintf(pkt.message, "Rolled %d. Can't afford %s ($%d needed)", 
-                               dice, prop->name, prop->price);
-                    }
-                } else if (prop->owner != player_id) {
-                    // Pay rent
-                    int rent = prop->rent;
-                    shm->players[player_id].money -= rent;
-                    shm->players[prop->owner].money += rent;
-                    sprintf(pkt.message, "Rolled %d. Paid $%d rent to Player %d on %s", 
-                           dice, rent, prop->owner, prop->name);
-                    logger_log("Player %d paid $%d rent to Player %d", 
-                              player_id, rent, prop->owner);
-                } else {
-                    sprintf(pkt.message, "Rolled %d. Landed on own property %s", dice, prop->name);
-                }
+            
+            // Log the landing
+            if (landing.money_change != 0) {
+                logger_log("Player %d: %s (money change: %d)", player_id, landing.message, landing.money_change);
+            } else {
+                logger_log("Player %d: %s", player_id, landing.message);
             }
             
             // Check bankruptcy
-            if (shm->players[player_id].money < 0) {
+            if (landing.is_bankrupt) {
                 shm->players[player_id].is_bankrupt = 1;
                 shm->active_player_count--;
                 logger_log("Player %d went bankrupt", player_id);
-                sprintf(pkt.message + strlen(pkt.message), " - BANKRUPT!");
             }
+            
+            // Format message for client with bounded append to avoid truncation warnings
+            int prefix_len = snprintf(pkt.message, sizeof(pkt.message), "Rolled %d. ", dice);
+            if (prefix_len < 0) {
+                prefix_len = 0;
+                pkt.message[0] = '\0';
+            }
+            size_t remaining = sizeof(pkt.message) - (size_t)prefix_len - 1;
+            snprintf(pkt.message + prefix_len, remaining + 1, "%.*s", (int)remaining, landing.message);
             
             // Send update
             pkt.type = MSG_UPDATE;
@@ -218,7 +207,7 @@ void handle_client(int client_socket, int player_id) {
         } else {
             // Invalid action - send current state
             pkt.type = MSG_UPDATE;
-            sprintf(pkt.message, "Invalid action");
+            snprintf(pkt.message, sizeof(pkt.message), "Invalid action");
         }
         
         if (write(client_socket, &pkt, sizeof(Packet)) < 0) {
@@ -249,11 +238,12 @@ int main() {
     signal(SIGINT, sig_handler);
     signal(SIGCHLD, sig_handler);
     
-    // Initialize logger
+    // Initialize logger (creates thread automatically)
     if (logger_init("game.log") != 0) {
         fprintf(stderr, "Failed to initialize logger\n");
         return 1;
     }
+    
     logger_log("=== Monopoly Server Starting ===");
     
     // Initialize shared memory
@@ -333,8 +323,9 @@ int main() {
             continue;
         }
         
-        if (game_state->game_state != WAITING && game_state->game_state != GAME_OVER) {
-            logger_log("Connection rejected - game in progress");
+        // Only reject if game is completely over (allow joining during initial setup/playing)
+        if (game_state->game_state == GAME_OVER) {
+            logger_log("Connection rejected - game over");
             pthread_mutex_unlock(&game_state->game_mutex);
             close(client_socket);
             continue;

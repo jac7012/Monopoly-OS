@@ -15,6 +15,9 @@ int main(int argc, char *argv[]) {
     struct sockaddr_in serv_addr;
     Packet pkt;
 
+    (void)argc;
+    (void)argv;
+
     // Create socket
     if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         printf("Socket creation error\n");
@@ -62,8 +65,16 @@ int main(int argc, char *argv[]) {
                 printf("Press 'r' and Enter to roll dice: ");
                 
                 char input;
-                scanf(" %c", &input);
-                write(sock, &input, 1);
+                if (scanf(" %c", &input) != 1) {
+                    printf("Input error.\n");
+                    close(sock);
+                    return 1;
+                }
+                if (write(sock, &input, 1) < 0) {
+                    perror("write");
+                    close(sock);
+                    return 1;
+                }
                 break;
 
             case MSG_UPDATE:

@@ -1,61 +1,82 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "game_logic.h"
 
-// Roll a dice: returns number between 1 and 6
-int roll_dice() {
-    return (rand() % 6) + 1;
+// Roll a dice with seed: returns number between 1 and 6
+int roll_dice_seeded(unsigned int *seed) {
+    return (rand_r(seed) % 6) + 1;
 }
 
-// Move the player along the board
-void move_player(Player* player, int steps) {
-    player->position = (player->position + steps) % BOARD_SIZE;
+
+
+// Check if player is bankrupt
+int is_player_bankrupt(int money) {
+    return money < 0;
 }
 
-// Handle landing events for the player
-void handle_landing(Player* player, Property board[]) {
-    Property* p = &board[player->position];
-
-    // If unowned and player has enough money, buy property
-    if(p->owner == -1 && player->money >= p->price) {
-        player->money -= p->price;
-        p->owner = player->id;
-        printf("Player %d buys property %d for %d$\n", player->id, p->id, p->price);
+// Handle landing on a position - returns what happened
+LandingResult handle_landing_on_position(int position, int player_id, int current_money,
+                                          Property board[], unsigned int *seed) {
+    LandingResult result;
+    memset(&result, 0, sizeof(LandingResult));
+    result.money_change = 0;
+    result.owner_id = -1;
+    result.property_bought = 0;
+    result.is_bankrupt = 0;
+    
+    // TAX OFFICE (position 10): Pay $50 tax
+    if (position == 10) {
+        result.money_change = -50;
+        sprintf(result.message, "TAX OFFICE! You paid $50 in taxes");
     }
-    // If owned by another player, pay rent
-    else if(p->owner != -1 && p->owner != player->id) {
-        int rent = p->rent;
-        player->money -= rent;
-        printf("Player %d pays %d$ rent to player %d\n", player->id, rent, p->owner);
+    // COMMUNITY CHEST (positions 2, 17): Random card draw
+    else if (position == 2 || position == 17) {
+        int card = rand_r(seed) % 2;  // Random card effect
+        if (card == 0) {
+            // Good luck card - get money
+            int bonus = 100 + (rand_r(seed) % 50);
+            result.money_change = bonus;
+            sprintf(result.message, "Community Chest! You drew a LUCKY card: +$%d!", bonus);
+        } else {
+            // Bad luck card - pay money
+            int penalty = 50 + (rand_r(seed) % 50);
+            result.money_change = -penalty;
+            sprintf(result.message, "Community Chest! You drew a BAD card: -$%d!", penalty);
+        }
     }
-
-    // Random events to make gameplay fun
-    int event = rand() % 10;
-    if(event == 0) {
-        player->money += 10;
-        printf("Lucky! Player %d gains 10$\n", player->id);
-    } else if(event == 1) {
-        player->money -= 5;
-        printf("Unlucky! Player %d loses 5$\n", player->id);
-    } else if(event == 2) {
-        player->skip_turn = 1;
-        printf("Player %d will skip next turn!\n", player->id);
-    } else if(event == 3) {
-        player->position = (player->position + BOARD_SIZE - 3) % BOARD_SIZE;
-        printf("Player %d moves back 3 steps!\n", player->id);
+    // NORMAL PROPERTY
+    else {
+        Property *prop = &board[position];
+        
+        if (prop->owner == -1) {
+            // Unowned - buy if can afford
+            if (current_money >= prop->price) {
+                result.money_change = -prop->price;
+                result.property_bought = 1;
+                sprintf(result.message, "Bought %s for $%d", prop->name, prop->price);
+            } else {
+                sprintf(result.message, "Can't afford %s ($%d needed)", prop->name, prop->price);
+            }
+        } else if (prop->owner != player_id) {
+            // Pay rent
+            int rent = prop->rent;
+            result.money_change = -rent;
+            result.owner_id = prop->owner;
+            sprintf(result.message, "Paid $%d rent to Player %d on %s", rent, prop->owner, prop->name);
+        } else {
+            sprintf(result.message, "Landed on own property %s", prop->name);
+        }
     }
+    
+    // Check if player would go bankrupt
+    int new_money = current_money + result.money_change;
+    if (is_player_bankrupt(new_money)) {
+        result.is_bankrupt = 1;
+        strcat(result.message, " - BANKRUPT!");
+    }
+    
+    return result;
 }
 
-// Check if the player is bankrupt
-void check_player_status(Player* player) {
-    if(player->money <= 0) {
-        player->active = 0;
-        printf("Player %d is bankrupt!\n", player->id);
-    }
-}
 
-// Display board and player info
-void display_board(Player* player, Property board[]) {
-    printf("Player %d: Money: %d Position: %d\n", player->id, player->money, player->position);
-    display_board_view(board);
-}

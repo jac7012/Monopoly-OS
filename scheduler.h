@@ -5,29 +5,9 @@
 #include <semaphore.h>
 #include <stdbool.h>
 
-/**
- * Scheduler Module Header
- * 
- * Implements Round Robin (RR) scheduling for managing player turns in the
- * Monopoly game. The scheduler is a dedicated thread in the parent process
- * that:
- * 
- * - Maintains cyclic player order
- * - Determines whose turn it is
- * - Signals when a player may act
- * - Skips disconnected/inactive players
- * - Ensures only one player acts at a time
- * 
- * Turn state resides in shared memory and is protected by synchronization
- * primitives to ensure safe access from parent threads and fork'd children.
- */
-
 #define MAX_PLAYERS 5
 #define MIN_PLAYERS 3
 
-/**
- * Represents a single player in the scheduling system
- */
 typedef struct {
     int player_id;           // Unique player identifier (0 to num_players-1)
     bool is_connected;       // True if player is actively connected
@@ -36,14 +16,6 @@ typedef struct {
     pthread_t client_thread; // Thread/process ID of the client (if applicable)
 } SchedulerPlayer;
 
-/**
- * Central scheduler state (shared memory structure)
- * 
- * This structure is placed in shared memory to ensure:
- * - Parent scheduler thread can read/write
- * - Child processes can read current turn state
- * - All access is synchronized via scheduler_lock
- */
 typedef struct {
     // Player information
     SchedulerPlayer players[MAX_PLAYERS];

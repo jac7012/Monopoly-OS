@@ -7,7 +7,7 @@ SERVER_OBJS = server.o game_state.o shared_memory.o logger.o scheduler.o sync.o 
 SERVER_TARGET = monopoly_server
 
 # Client components  
-CLIENT_OBJS = client.o board.o game_logic.o
+CLIENT_OBJS = client.o game_logic.o
 CLIENT_TARGET = monopoly_client
 
 # Demo/test components
@@ -41,9 +41,8 @@ scheduler.o: scheduler.c scheduler.h sync.h logger.h
 sync.o: sync.c sync.h
 shared_memory.o: shared_memory.c shared_memory.h
 main.o: main.c shared_memory.h scheduler.h
-client.o: client.c player.h board.h game_logic.h
-board.o: board.c board.h
-game_logic.o: game_logic.c game_logic.h player.h board.h
+client.o: client.c player.h game_logic.h
+game_logic.o: game_logic.c game_logic.h player.h
 
 # Clean build artifacts
 clean:
